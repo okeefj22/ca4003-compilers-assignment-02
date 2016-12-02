@@ -1,0 +1,304 @@
+/*******************************
+ ***** SECTION 1 - OPTIONS *****
+ *******************************/
+
+options {
+    JAVA_UNICODE_ESCAPE = true;
+    IGNORE_CASE = true;
+} 
+
+
+/*********************************
+ ***** SECTION 2 - USER CODE *****
+ *********************************/
+
+PARSER_BEGIN(CCALParser)
+
+public class CCALParser {
+
+    public static void main(String[] args) {
+
+        // Initialise parser to read from appropriate place
+        CCALParser parser;
+        if (args.length == 0) {
+
+            System.out.println("Reading from standard input...");
+            parser = new CCALParser(System.in);
+
+        } else if (args.length == 1) {
+
+            try {
+
+                parser = new CCALParser(new java.io.FileInputStream(args[0])); 
+
+            } catch (java.io.FileNotFoundException e) {
+
+                System.err.println("File " + args[0] + " not found.");
+                return;
+            }
+
+        } else {
+    
+            System.out.println("CCAL Parser: Usage is one of:");
+            System.out.println("    java CCALParser < inputfile");
+            System.out.println("OR");
+            System.out.println("    java CCALParser inputfile");
+            return;
+        }
+
+
+    // Parse the file
+    try {
+
+        parser.Prog();
+        System.out.println("CCAL Parser: CCAL program parsed successfully.");
+
+    } catch (ParseException e) {
+    
+    
+        System.out.println(e.getMessage());
+        System.out.println("CCAL Parser: Encountered errors during parse.");
+    }
+
+    }
+}
+
+PARSER_END(CCALParser)
+
+/*****************************************
+ ***** SECTION 3 - TOKEN DEFINITIONS *****
+ *****************************************/
+
+TOKEN_MGR_DECLS :
+{
+    static int commentNesting = 0;
+}
+
+SKIP : /*** Ignoring spaces/tabs/newlines ***/
+{
+    " "
+  | "\t"
+  | "\n" 
+  | "\r" 
+  | "\f" 
+}
+
+SKIP : /* MULTI-LINE COMMENTS */
+{
+    "/*" { commentNesting++; } : IN_COMMENT
+}
+
+<IN_COMMENT> SKIP :
+{
+    "/*" { commentNesting++; }
+  | "*/" { commentNesting--; if (commentNesting == 0) { SwitchTo(DEFAULT); }} 
+  | <~[]> 
+}
+
+SKIP : /* SINGLE-LINE COMMENT */
+{
+    < "//" (~["\n"])* "\n" >
+}
+
+TOKEN : /* KEYWORDS */
+{
+    < VAR : "var" >
+  | < CONST : "const" >
+  | < RETURN : "return" >
+  | < INT : "integer" >
+  | < BOOL : "boolean" >
+  | < VOID : "void" >
+  | < MAIN : "main" >
+  | < IF : "if" >
+  | < ELSE : "else" >
+  | < TRUE : "true" >
+  | < FALSE : "false" >
+  | < WHILE : "while" >
+  | < SKP : "skip" >
+}
+
+TOKEN : /* PUNCTUATION */
+{
+    < COMMA : "," >
+  | < SEMIC : ";" >
+  | < COLON : ":" >
+  | < ASSIGN : "=" >
+  | < LBRACE : "{" >
+  | < RBRACE : "}" >
+  | < LPAREN : "(" >
+  | < RPAREN : ")" >
+  | < PLUS : "+" >
+  | < MINUS : "-" >
+  | < NEGATE : "~" >
+  | < OR : "||" >
+  | < AND : "&&" >
+  | < EQ : "==" >
+  | < NOT_EQ : "!=" >
+  | < LT : "<" >
+  | < LT_EQ : "<=" >
+  | < GT : ">" >
+  | < GT_EQ : ">=" >
+}
+
+TOKEN : /* VALUES */
+{
+    < NUMBER : "0" | ((<MINUS>)? ["1" - "9"] (<DIGIT>)*) >
+  | < ID : <LETTER> (<LETTER> | <DIGIT> | "_")* >
+  | < #DIGIT : ["0" - "9"] >
+  | < #LETTER : ["a" - "z", "A" - "Z"] >
+}
+
+TOKEN : /* Anything not recognised so far */
+{
+    < OTHER : ~[] >
+}
+
+/***********************************
+ ***** SECTION 4 - THE GRAMMAR *****
+ ***********************************/
+
+void Prog() : {}
+{
+    DeclList() FuncList() Main()
+}
+
+void DeclList() : {}
+{
+    [Decl() <SEMIC> DeclList()]
+}
+
+void Decl() : {}
+{
+    VarDecl()
+  | ConstDecl()
+}
+
+void VarDecl() : {}
+{
+    (<VAR> <ID> <COLON> Type())
+}
+
+void ConstDecl() : {}
+{
+    (<CONST> <ID> <COLON> Type() <ASSIGN> Expr())
+}
+
+void FuncList() : {}
+{
+    [Func() FuncList()]
+}
+
+void Func() : {}
+{
+    (Type() <ID> <LPAREN> ParamList() <RPAREN> <LBRACE> DeclList() StmBlk() <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> <RBRACE>)
+}
+
+void Type() : {}
+{
+    <INT>
+  | <BOOL>
+  | <VOID>
+}
+
+void ParamList() : {}
+{
+    [NempParamList()]   
+}
+
+void NempParamList() : {}
+{
+    (<ID> <COLON> Type() NempParamListPrime())
+}
+
+void NempParamListPrime() : {}
+{
+    [<COMMA> NempParamList()]
+}
+
+void Main() : {}
+{
+    (<MAIN> <LBRACE> DeclList() StmBlk() <RBRACE>)
+}
+
+void StmBlk() : {}
+{
+    Stm() StmBlk()
+  | {}
+}
+
+void Stm() : {}
+{
+    (<ID> StmPrime())
+  | (<LBRACE> StmBlk() <LBRACE>)
+  | (<IF> Cond() <LBRACE> StmBlk() <RBRACE> <ELSE> <LBRACE> StmBlk() <RBRACE>)
+  | (<WHILE> Cond() <LBRACE> StmBlk() <RBRACE>)
+  | (<SKP> <SEMIC>)
+}
+
+void StmPrime() : {}
+{
+    <ASSIGN> Expr() <SEMIC>
+  | <LPAREN> ArgList() <RPAREN> <SEMIC>
+}
+
+void Expr() : {}
+{
+    (Frag() Term())
+  | (<LPAREN> Expr() <RPAREN> Term())
+}
+
+void Term() : {}
+{
+    BinOp() Expr()
+  | {}
+}
+
+void BinOp() : {}
+{
+    <PLUS> 
+  | <MINUS>
+}
+
+void Frag() : {}
+{
+    (<ID> [<LPAREN> ArgList() <RPAREN>])
+  | (<MINUS> <ID>)
+  | <NUMBER>
+  | <TRUE>
+  | <FALSE>
+}
+
+void Cond() : {}
+{
+    (<NEGATE> Cond() CondPrime())
+  | LOOKAHEAD(3) (<LPAREN> Cond() <RPAREN> CondPrime())
+  | (Expr() CompOp() Expr() CondPrime())
+}
+
+void CondPrime() : {}
+{
+    <OR> Cond()
+  | <AND> Cond()
+  | {}
+}
+
+void CompOp() : {}
+{
+    <EQ>
+  | <NOT_EQ>
+  | <LT>
+  | <LT_EQ>
+  | <GT>
+  | <GT_EQ>
+}
+
+void ArgList() : {}
+{
+    [NempArgList()]
+}
+
+void NempArgList() : {}
+{
+    <ID> [<COMMA> NempArgList()]
+}
+
