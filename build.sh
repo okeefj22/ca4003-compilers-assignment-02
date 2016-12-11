@@ -1,11 +1,12 @@
-javacc CCALParser.jj
-javac CCALParser.java
+rm -rf build/
+mkdir build
 
-java CCALParser ccal/case-insensitive-01.ccl
-java CCALParser ccal/case-insensitive-02.ccl
-java CCALParser ccal/case-insensitive-03.ccl
-java CCALParser ccal/comments-01.ccl
-java CCALParser ccal/functions-01.ccl
-java CCALParser ccal/functions-02.ccl
-java CCALParser ccal/scopes-01.ccl
+cp src/CCAL.jjt build/
+cp src/DataType.java build/
+cp src/SemanticCheckVisitor.java build/
+cp src/STC.java build/
 
+cd build
+jjtree CCAL.jjt
+javacc CCAL.jj
+javac -Xlint:unchecked CCAL.java

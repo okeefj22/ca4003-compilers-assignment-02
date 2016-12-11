@@ -1,0 +1,403 @@
+/*******************************
+ ***** SECTION 1 - OPTIONS *****
+ *******************************/
+
+options {
+    JAVA_UNICODE_ESCAPE = true;
+    IGNORE_CASE = true;
+
+    MULTI = true;
+    VISITOR = true;
+    NODE_DEFAULT_VOID = true;
+    NODE_PREFIX = "";
+} 
+
+
+/*********************************
+ ***** SECTION 2 - USER CODE *****
+ *********************************/
+
+PARSER_BEGIN(CCAL)
+
+import java.util.*;
+
+public class CCAL {
+
+    private static void printHeading(String heading) {
+        String stars = "********************************************************************************";
+        String sub = stars.substring(0, (stars.length() - heading.length()) / 2 - 1);
+        System.out.println("\n" + stars);
+        System.out.printf("%s %s %s\n", sub, heading, sub);
+        System.out.println(stars+ "\n");
+    }
+
+    public static Hashtable symTable = new Hashtable();
+    public static Hashtable localSymTable = new Hashtable();
+
+    public static void main(String[] args) {
+
+        CCAL parser;
+
+        // Initialise program to read from appropriate place
+        if (args.length == 0) {
+
+            System.out.println("Reading from standard input...");
+            parser = new CCAL(System.in);
+
+        } else if (args.length == 1) {
+
+            try {
+
+                parser = new CCAL(new java.io.FileInputStream(args[0])); 
+
+            } catch (java.io.FileNotFoundException e) {
+
+                System.err.println("File " + args[0] + " not found.");
+                return;
+            }
+
+        } else {
+    
+            System.out.println("CCAL Parser: Usage is one of:");
+            System.out.println("    java CCAL < inputfile");
+            System.out.println("OR");
+            System.out.println("    java CCAL inputfile");
+            return;
+        }
+
+
+    	try {
+	
+    	    // output AST
+            printHeading("Abstract Syntax Tree");
+            SimpleNode root = parser.Prog();
+            root.dump("");
+    
+            // output symbol table
+            printHeading("Symbol Table");
+            Enumeration symTableKeys = symTable.keys();
+    
+            while (symTableKeys.hasMoreElements()) {
+
+                String scope = (String) symTableKeys.nextElement();
+                System.out.println("Scope --> " + scope);
+    
+                Hashtable inScope = (Hashtable) symTable.get(scope);
+                Enumeration inScopeKeys = inScope.keys();
+                while (inScopeKeys.hasMoreElements()) {
+                    String s = (String) inScopeKeys.nextElement();
+                    STC tmp = (STC) inScope.get(s);
+    
+                    System.out.println("<----------------->");
+                    if (tmp.name != null) System.out.println("\tid = " + tmp.name);
+                    if (tmp.typeQualifier != null) System.out.println("\ttype qualifier = " + tmp.typeQualifier);
+                    if (tmp.type != null) System.out.println("\ttype = " + tmp.type);
+                }
+    
+                System.out.println();
+            }
+    
+            // semantic analysis
+            printHeading("Semantic  Analysis");
+            SemanticCheckVisitor sv = new SemanticCheckVisitor();
+            root.jjtAccept(sv, symTable);
+    
+            // 3 address code generation
+            // System.out.println("\nBuild 3 address code:");
+            // ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
+            // root.jjtAccept(cb, null);
+            // System.out.println("ThreeAddrCode.ir created.");
+    
+        } catch (ParseException e) {
+        
+            System.out.println(e.getMessage());
+            System.out.println("CCAL Parser: Encountered errors during parse.");
+        }
+    }
+}
+
+PARSER_END(CCAL)
+
+/*****************************************
+ ***** SECTION 3 - TOKEN DEFINITIONS *****
+ *****************************************/
+
+TOKEN_MGR_DECLS :
+{
+    static int commentNesting = 0;
+}
+
+SKIP : /*** Ignoring spaces/tabs/newlines ***/
+{
+    " "
+  | "\t"
+  | "\n" 
+  | "\r" 
+  | "\f" 
+}
+
+SKIP : /* MULTI-LINE COMMENTS */
+{
+    "/*" { commentNesting++; } : IN_COMMENT
+}
+
+<IN_COMMENT> SKIP :
+{
+    "/*" { commentNesting++; }
+  | "*/" { commentNesting--; if (commentNesting == 0) { SwitchTo(DEFAULT); }} 
+  | <~[]> 
+}
+
+SKIP : /* SINGLE-LINE COMMENT */
+{
+    < "//" (~["\n"])* "\n" >
+}
+
+TOKEN : /* KEYWORDS */
+{
+    < VAR : "var" >
+  | < CONST : "const" >
+  | < RETURN : "return" >
+  | < INT : "integer" >
+  | < BOOL : "boolean" >
+  | < VOID : "void" >
+  | < MAIN : "main" >
+  | < IF : "if" >
+  | < ELSE : "else" >
+  | < TRUE : "true" >
+  | < FALSE : "false" >
+  | < WHILE : "while" >
+  | < SKP : "skip" >
+}
+
+TOKEN : /* PUNCTUATION */
+{
+    < COMMA : "," >
+  | < SEMIC : ";" >
+  | < COLON : ":" >
+  | < ASSIGN : "=" >
+  | < LBRACE : "{" >
+  | < RBRACE : "}" >
+  | < LPAREN : "(" >
+  | < RPAREN : ")" >
+  | < PLUS : "+" >
+  | < MINUS : "-" >
+  | < NEGATE : "~" >
+  | < OR : "||" >
+  | < AND : "&&" >
+  | < EQ : "==" >
+  | < NOT_EQ : "!=" >
+  | < LT : "<" >
+  | < LT_EQ : "<=" >
+  | < GT : ">" >
+  | < GT_EQ : ">=" >
+}
+
+TOKEN : /* VALUES */
+{
+    < NUMBER : "0" | ((<MINUS>)? ["1" - "9"] (<DIGIT>)*) >
+  | < ID : <LETTER> (<LETTER> | <DIGIT> | "_")* >
+  | < #DIGIT : ["0" - "9"] >
+  | < #LETTER : ["a" - "z", "A" - "Z"] >
+}
+
+TOKEN : /* Anything not recognised so far */
+{
+    < OTHER : ~[] >
+}
+
+/***********************************
+ ***** SECTION 4 - THE GRAMMAR *****
+ ***********************************/
+
+SimpleNode Prog() #Prog : {}
+{
+    DeclList() { symTable.put("global", localSymTable); localSymTable = new Hashtable(); }
+    FuncList()
+    Main() <EOF> {return jjtThis;}
+}
+
+void DeclList() : {}
+{
+    [Decl() <SEMIC> DeclList()]
+}
+
+void Decl() : {}
+{
+    VarDecl()
+  | ConstDecl()
+}
+
+void VarDecl() #VarDecl : {Token t; String id; String type;}
+{
+    t = <VAR> id = Identifier() <COLON> type = Type() {
+        Enumeration en = localSymTable.keys();
+        while (en.hasMoreElements()) {
+            String s = (String) en.nextElement();
+            STC tmp = (STC) localSymTable.get(s);
+            if (tmp.type == null) tmp.addType(type);
+        }
+    }
+}
+
+void ConstDecl() #ConstDecl : {Token t; String id; String type;}
+{
+    t = <CONST> id = Identifier() <COLON> type = Type() ConstAssign() {
+        localSymTable.put(id, new STC(t.image, id, type, localSymTable.containsKey(id)));
+    }
+}
+
+void ConstAssign() : {Token t;}
+{
+    t = <ASSIGN> Expr() {jjtThis.value = t.image;} #ConstAssign(1)
+}
+
+void FuncList() : {}
+{
+    [Func() FuncList()]
+}
+
+void Func() #Func : {String id; String type;}
+{
+    Type() id = Identifier() <LPAREN> ParamList() <RPAREN> <LBRACE>
+    DeclList()
+    StmBlk()
+    <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> #FuncRet(1)
+    <RBRACE>
+    {
+        jjtThis.value = id;
+        symTable.put(id, localSymTable);
+        localSymTable = new Hashtable();
+    }
+}
+
+String Type() #Type : {Token t;}
+{
+  ( t = <INT>
+  | t = <BOOL>
+  | t = <VOID>
+  )
+  { jjtThis.value = t.image; return t.image; }
+}
+
+void ParamList() : {}
+{
+    [NempParamList()]   
+}
+
+void NempParamList() #ParamList : {String id; String type;}
+{
+    id = Identifier() <COLON> type = Type() {
+        localSymTable.put(id, new STC("var", id, type, localSymTable.containsKey(id)));
+    } NempParamListPrime()
+}
+
+void NempParamListPrime() : {}
+{
+    [<COMMA> NempParamList()]
+}
+
+void Main() #Main : {Token t;}
+{
+    t = <MAIN> <LBRACE> DeclList() StmBlk() <RBRACE>
+    {
+        symTable.put(t.image, localSymTable);
+        localSymTable = new Hashtable();
+    }
+}
+
+void StmBlk() : {}
+{
+    Stm() StmBlk()
+  | {}
+}
+
+void Stm() #Stm : {Token t;}
+{
+    (Identifier() StmPrime())
+  | (t = <LBRACE> StmBlk() <LBRACE> {jjtThis.value = t.image;})
+  | (t = <IF> Cond() <LBRACE> StmBlk() <RBRACE> <ELSE> <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;})
+  | (t = <WHILE> Cond() <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;})
+  | (<SKP> <SEMIC>)
+}
+
+void StmPrime() : {Token t;}
+{
+    (t = <ASSIGN> Expr() <SEMIC> {jjtThis.value = t.image;}) #Assign
+  | (<LPAREN> ArgList() <RPAREN> <SEMIC> {jjtThis.value = "procCall";}) #Stm
+}
+
+void Expr() : {}
+{
+    (Frag() Term())
+  | (<LPAREN> Expr() <RPAREN> Term())
+}
+
+void Term() : {}
+{
+    BinOp() Expr()
+  | {}
+}
+
+void BinOp() : {Token t;}
+{
+    t = <PLUS> {jjtThis.value = t.image;} #PlusOp(2)
+  | t = <MINUS> {jjtThis.value = t.image;} #MinOp(2)
+}
+
+void Frag() : {}
+{
+    (Identifier() [<LPAREN> ArgList() <RPAREN>])
+  | (<MINUS> Identifier())
+  | Num()
+  | Bool()
+}
+
+void Num() #Num : {Token t;}
+{
+    t = <NUMBER> {jjtThis.value = t.image;}
+}
+
+void Bool() #Bool : {Token t;}
+{
+    (t = <TRUE> | t = <FALSE>) {jjtThis.value = t.image;}
+}
+
+void Cond() : {}
+{
+    (<NEGATE> Cond() CondPrime())
+  | LOOKAHEAD(3) (<LPAREN> Cond() <RPAREN> CondPrime())
+  | (Expr() CompOp() Expr() CondPrime())
+}
+
+void CondPrime() : {Token t;}
+{
+    t = <OR> Cond() {jjtThis.value = t.image;} #OrOp(2)
+  | t = <AND> Cond() {jjtThis.value = t.image;} #AndOp(2) 
+  | {}
+}
+
+void CompOp() : {Token t;}
+{
+    t = <EQ> {jjtThis.value = t.image;} #EqOp(2)
+  | t = <NOT_EQ> {jjtThis.value = t.image;} #NotOp(2)
+  | t = <LT> {jjtThis.value = t.image;} #LtOp(2)
+  | t = <LT_EQ> {jjtThis.value = t.image;} #LtEqOp(2)
+  | t = <GT> {jjtThis.value = t.image;} #GtOp(2)
+  | t = <GT_EQ> {jjtThis.value = t.image;} #GtEqOp(2)
+}
+
+void ArgList() : {}
+{
+    [NempArgList()]
+}
+
+void NempArgList() #ArgList : {}
+{
+    Identifier() [<COMMA> NempArgList()]
+}
+
+String Identifier() #identifier : {Token t;}
+{
+    t = <ID> {jjtThis.value = t.image; return t.image;}
+}

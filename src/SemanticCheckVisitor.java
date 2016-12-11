@@ -3,8 +3,8 @@ import java.util.*;
 public class SemanticCheckVisitor implements CCALVisitor {
 
     private static String scope = "global";
-    private static Hashtable<String, Integer> functionCalls = new HashTable<>();
-    private static Hashtable<String, Integer> functionParams = new HashTable<>();
+    private static Hashtable<String, Integer> functionCalls = new Hashtable<>();
+    private static Hashtable<String, Integer> functionParams = new Hashtable<>();
     private static LinkedList<String> idsWithoutFunc = new LinkedList<>();
     private static boolean idsDeclaredInScope = true;
     private static boolean assignmentTypeCorrect = true;
@@ -55,7 +55,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
         if (correctArithmetic) System.out.println("");
         if (correctArithmetic) System.out.println("");
 
-        if (idWithoutFunc.size() > 0) {
+        if (idsWithoutFunc.size() > 0) {
             for (String id: idsWithoutFunc) System.out.println("\tError: No function for invoked id \"" + id + "\"");
         }
 
@@ -63,19 +63,19 @@ public class SemanticCheckVisitor implements CCALVisitor {
         boolean written = true;
         symTableKeys = symTable.keys();
         while (symTableKeys.hasMoreElements()) {
-            String smpScope = (String) symTableKeys.nextElement();
+            String tmpScope = (String) symTableKeys.nextElement();
             Hashtable inScope = (Hashtable) symTable.get(tmpScope);
             Enumeration inScopeKeys = inScope.keys();
             while (inScopeKeys.hasMoreElements()) {
                 String s = (String) inScopeKeys.nextElement();
                 STC tmp = (STC) inScope.get(s);
 
-                if (!entry.writtenTo) {
+                if (!tmp.writtenTo) {
                     written = false;
                     System.out.println("\tWarning: Never wrote to \"" + tmp.name + "\".");
                 }
 
-                if (!entry.readFrom) {
+                if (!tmp.readFrom) {
                     read = false;
                     System.out.println("\tWarning: Never read from \"" + tmp.name + "\".");
                 }
@@ -90,11 +90,11 @@ public class SemanticCheckVisitor implements CCALVisitor {
         for (String func : functionCalls.keySet()) {
             if (functionCalls.get(func) == 0) {
                 System.out.println("\tWarning: The function \"" + func + "\" was declared but never called.");
-                allFunctionsCalled = false;
+                allFuncsCalled = false;
             }
         }
 
-        //if (allFunctionsCalled) continue;
+        //if (allFuncsCalled) continue;
 
         return DataType.Prog;
     }
@@ -112,11 +112,11 @@ public class SemanticCheckVisitor implements CCALVisitor {
         int valIndex = 2;
         while (valIndex < node.jjtGetNumChildren()) {
             SimpleNode idSn = (SimpleNode) node.jjtGetChild(idIndex);
-            DataType child1DataType = (DataType) node.jjtGetChild(typeIndex).jjtAccept(this.data);
-            DataType child2DataType = (DataType) node.jjtGetChild(valIndex).jjtAccept(this.data);
+            DataType child1DataType = (DataType) node.jjtGetChild(typeIndex).jjtAccept(this, data);
+            DataType child2DataType = (DataType) node.jjtGetChild(valIndex).jjtAccept(this, data);
 
             if (child1DataType != child2DataType) {
-                constAssignTypeCorrect = false;
+                constAssignmentTypeCorrect = false;
                 System.out.println("\tError: Const \"" + idSn.jjtGetValue() + "\" was assigned a value of the incorrect type.");
                 System.out.println("\t\tWas expecting a \"" + child1DataType + "\" but instead encountered a \"" + child2DataType + "\"");
             }
@@ -143,7 +143,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
         SimpleNode paramListSn = (SimpleNode) node.jjtGetChild(2);
 
         functionCalls.put(val, 0);
-        funcitonParams.put(val, (paramListSn.jjtGetNumChildren() / 2));
+        functionParams.put(val, (paramListSn.jjtGetNumChildren() / 2));
 
         node.childrenAccept(this, data);
         return DataType.Func;
@@ -157,8 +157,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
     
     public Object visit(Type node, Object data) {
         String val = (String) node.value;
-        if (val.equals("bool")) return DataType.BoolVal;
-        if (val.equals("int")) return DataType.IntVal;
+        if (val.equals("bool")) return DataType.Bool;
+        if (val.equals("int")) return DataType.Num;
 
         return DataType.TypeUnknown;
     }
@@ -185,8 +185,34 @@ public class SemanticCheckVisitor implements CCALVisitor {
     }
 
     public Object visit(Stm node, Object data) {
+        Hashtable symTable = (Hashtable) data;
+        int numChild = node.jjtGetNumChildren();
+        for (int i = 0; i < numChild; i++) {
+            SimpleNode childNode = (SimpleNode) node.jjtGetChild(i);
+            if (childNode.toString().equals("ArgList")) {
+                SimpleNode idNode = (SimpleNode) node.jjtGetChild(i-1);
+                if (!symTable.containsKey(idNode.value)) {
+                    String id = (String) idNode.value;
+                    idsWithoutFunc.add(id);
+                }
+
+                if (functionParams.containsKey(idNode.value)) {
+                    if (functionParams.get(idNode.value) != childNode.jjtGetNumChildren()) {
+                        correctFuncParamNum = false;
+                        System.out.println("\tError: Wrong number of arguments passed into function \"" + idNode.value + "\".");
+                        System.out.println("\t\tWas expecting " + functionParams.get(idNode.value) + " parameteres but encountered " + childNode.jjtGetNumChildren() + " parameters.");
+                    }
+                }
+            }
+        }
+
+        node.childrenAccept(this, data);
+        return DataType.Stm;
+    }
+
+    public Object visit(Assign node, Object data) {
         String stmType = (String) node.value;
-        if (stmType.equals(":=")) { // TODO don't think this is included in my Stm
+        if (stmType != null && stmType.equals(":=")) { // TODO don't think this is included in my Stm
             SimpleNode child1SimpleNode = (SimpleNode) node.jjtGetChild(0);
             DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
             DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
@@ -203,36 +229,15 @@ public class SemanticCheckVisitor implements CCALVisitor {
             writeRead(child1SimpleNode.jjtGetValue(), data, "write");
         }
 
-        Hashtable symTable = (Hashtable) data;
-        int numChild = node.jjtGetNumChildren();
-        for (int i = 0; i < numChild; i++) {
-            SimpleNode childNode = (SimpleNode) node.jjtGetChild(i);
-            if (childNode.toString().equals("ArgList")) {
-                SimpleNode idNode = (SimpleNode) node.jjtGetChild(i-1);
-                if (!symTable.containsKey(idNode.value)) {
-                    String id = (String) idNode.value;
-                    idsWithoutFunctions.add(id);
-                }
-
-                if (functionParams.containsKey(idNode.value)) {
-                    if (functionParams.get(idNode.value) != childNode.jjtGetNumChildren()) {
-                        correctFunctionParamNum = false;
-                        System.out.println("\tError: Wrong number of arguments passed into function \"" + idNode.value + "\".");
-                        System.out.println("\t\tWas expecting " + functionParams.get(idNode.value) + " parameteres but encountered " + childNode.jjtGetNumChildren() + " parameters.");
-                    }
-                }
-            }
-        }
-
         node.childrenAccept(this, data);
-        return DataType.Stm;
+        return DataType.Assign;
     }
 
     private DataType getDataType(SimpleNode node, Object data) {
         DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
         DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
 
-        if ((child1DataType == DataType.Number) && (child2DataType == DataType.Number)) return DataType.Num;
+        if ((child1DataType == DataType.Num) && (child2DataType == DataType.Num)) return DataType.Num;
 
         // TODO bad design pattern
         correctArithmetic = false;
@@ -343,7 +348,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
         if (symTable.containsKey(value)) {
             SimpleNode parentNode = (SimpleNode) node.jjtGetParent();
             if (parentNode.toString().equals("Statement")) {
-                if (!idsWithoutFunctions.contains(value)) {
+                if (!idsWithoutFunc.contains(value)) {
                     System.out.println("\tError: ID not declared within scope: " + value);
                     idsDeclaredInScope = false;
                 }
@@ -351,9 +356,38 @@ public class SemanticCheckVisitor implements CCALVisitor {
             }
         }
 
-        if (entry.type == "int") return DataType.Num;
-        if (entry.type == "bool") return DataType.Bool;
+        Hashtable inScope = (Hashtable) symTable.get(scope);
+        STC tmp = (STC) inScope.get(value);
+        if (tmp == null) {
+            Hashtable globalScope = (Hashtable) symTable.get("global");
+            tmp = (STC) globalScope.get(value);
+            if (scope.equals("global") || tmp == null) {
+                if (!idsWithoutFunc.contains(value)) {
+                    System.out.println("\tError: Identifier not declared within scope: " + value);
+                    idsDeclaredInScope = false;
+                }
+                return DataType.TypeUnknown;
+            }
+        }
+
+        if (tmp.type == "int") return DataType.Num;
+        if (tmp.type == "bool") return DataType.Bool;
 
         return DataType.TypeUnknown;
+    }
+
+    private void writeRead(Object varName, Object data, String operation) {
+        Hashtable symTable = (Hashtable) data;
+
+        Hashtable inScope = (Hashtable) symTable.get(scope);
+        STC tmp = (STC) inScope.get(varName);
+        if (tmp == null) {
+            Hashtable globalScope = (Hashtable) symTable.get("global");
+            tmp = (STC) globalScope.get(varName);
+            if (tmp == null) return; // undefined var
+        }
+
+        if (operation.equals("write")) tmp.write();
+        else if (operation.equals("read")) tmp.read();
     }
 }
