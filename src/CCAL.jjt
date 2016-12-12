@@ -72,7 +72,8 @@ public class CCAL {
             printHeading("Abstract Syntax Tree");
             SimpleNode root = parser.Prog();
             root.dump("");
-    
+
+/*
             // output symbol table
             printHeading("Symbol Table");
             st.print();
@@ -86,6 +87,7 @@ public class CCAL {
             printHeading("Three Address Code");
             ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
             root.jjtAccept(cb, null);
+*/
     
         } catch (ParseException e) {
         
@@ -273,35 +275,24 @@ void StmBlk() : {}
 
 void Stm() : {Token t;}
 {
-    (Identifier() StmPrime())
+    (Identifier() ((t = <ASSIGN> Expr() <SEMIC> {jjtThis.value = t.image;}) | (<LPAREN> ArgList() <RPAREN> <SEMIC> {jjtThis.value = "procCall";}))) #Assign(2)
   | (<LBRACE> StmBlk() <LBRACE>)
   | (t = <IF> Cond() <LBRACE> StmBlk() <RBRACE> <ELSE> <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;}) #Stm
   | (t = <WHILE> Cond() <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;}) #Stm
   | (<SKP> <SEMIC>)
 }
 
-void StmPrime() : {Token t;}
-{
-    (t = <ASSIGN> Expr() <SEMIC> {jjtThis.value = t.image;}) #Assign(2)
-  | (<LPAREN> ArgList() <RPAREN> <SEMIC> {jjtThis.value = "procCall";}) #Stm
-}
-
-void Expr() #Expr : {}
+void Expr() : {}
 {
     (Frag() Term())
   | (<LPAREN> Expr() <RPAREN> Term())
 }
 
-void Term() : {}
+void Term() : {Token t;}
 {
-    BinOp() Expr()
+    t = <PLUS> Expr() {jjtThis.value = t.image;} #PlusOp(2)
+  | t = <MINUS> Expr() {jjtThis.value = t.image;} #MinOp(2)
   | {}
-}
-
-void BinOp() : {Token t;}
-{
-    t = <PLUS> {jjtThis.value = t.image;} #PlusOp(2)
-  | t = <MINUS> {jjtThis.value = t.image;} #MinOp(2)
 }
 
 void Frag() : {}
@@ -338,12 +329,12 @@ void CondPrime() : {Token t;}
 
 void CompOp() : {Token t;}
 {
-    t = <EQ> {jjtThis.value = t.image;} #EqOp(2)
-  | t = <NOT_EQ> {jjtThis.value = t.image;} #NotOp(2)
-  | t = <LT> {jjtThis.value = t.image;} #LtOp(2)
-  | t = <LT_EQ> {jjtThis.value = t.image;} #LtEqOp(2)
-  | t = <GT> {jjtThis.value = t.image;} #GtOp(2)
-  | t = <GT_EQ> {jjtThis.value = t.image;} #GtEqOp(2)
+    t = <EQ> {jjtThis.value = t.image;} #EqOp
+  | t = <NOT_EQ> {jjtThis.value = t.image;} #NotOp
+  | t = <LT> {jjtThis.value = t.image;} #LtOp
+  | t = <LT_EQ> {jjtThis.value = t.image;} #LtEqOp
+  | t = <GT> {jjtThis.value = t.image;} #GtOp
+  | t = <GT_EQ> {jjtThis.value = t.image;} #GtEqOp
 }
 
 void ArgList() : {}
