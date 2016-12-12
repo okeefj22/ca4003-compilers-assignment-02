@@ -1,5 +1,4 @@
-public class ThreeAddrCodeBuilder implements CCALVisitor {
-
+public class ThreeAddrCodeBuilder implements CCALVisitor { 
     private static int labelCount = 1;
     private static int tmpCount = 1;
 
@@ -34,15 +33,11 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
     }
 
     public Object visit(ConstDecl node, Object data) {
-        int i = 2;
-        while (i < node.jjtGetNumChildren()) {
-            String id = (String) node.jjtGetChild(0).jjtAccept(this, data);
-            String val = (String) node.jjtGetChild(2).jjtAccept(this, data);
+        String id = (String) node.jjtGetChild(0).jjtAccept(this, data);
+        String val = (String) node.jjtGetChild(2).jjtAccept(this, data);
 
-            printInstruction(id + " " + val);
+        printInstruction(id + " " + val);
 
-            i += 3;
-        }
         return null;
     }
 

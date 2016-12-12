@@ -2,5 +2,5 @@ main
 {
     var i:integer;
 
-    i = 1;
+    i = 1 + 2;
 }

@@ -31,8 +31,8 @@ public class CCAL {
         System.out.println(stars+ "\n");
     }
 
-    public static Hashtable symTable = new Hashtable();
-    public static Hashtable localSymTable = new Hashtable();
+    public static SymbolTable st = new SymbolTable();
+    public static String scope = "global";
 
     public static void main(String[] args) {
 
@@ -75,32 +75,12 @@ public class CCAL {
     
             // output symbol table
             printHeading("Symbol Table");
-            Enumeration symTableKeys = symTable.keys();
-    
-            while (symTableKeys.hasMoreElements()) {
-
-                String scope = (String) symTableKeys.nextElement();
-                System.out.println("Scope: " + scope);
-    
-                Hashtable inScope = (Hashtable) symTable.get(scope);
-                Enumeration inScopeKeys = inScope.keys();
-                while (inScopeKeys.hasMoreElements()) {
-                    String s = (String) inScopeKeys.nextElement();
-                    STC tmp = (STC) inScope.get(s);
-    
-                    System.out.println("<----------------->");
-                    if (tmp.name != null) System.out.println("id = " + tmp.name);
-                    if (tmp.typeQualifier != null) System.out.println("type qualifier = " + tmp.typeQualifier);
-                    if (tmp.type != null) System.out.println("type = " + tmp.type);
-                }
-    
-                System.out.println();
-            }
+            st.print();
     
             // semantic analysis
             printHeading("Semantic  Analysis");
             SemanticCheckVisitor sv = new SemanticCheckVisitor();
-            root.jjtAccept(sv, symTable);
+            root.jjtAccept(sv, st);
     
             // 3 address code generation
             printHeading("Three Address Code");
@@ -129,7 +109,7 @@ TOKEN_MGR_DECLS :
 SKIP : /*** Ignoring spaces/tabs/newlines ***/
 {
     " "
-  | ""
+  | "\t"
   | "\n" 
   | "\r" 
   | "\f" 
@@ -211,7 +191,7 @@ TOKEN : /* Anything not recognised so far */
 
 SimpleNode Prog() #Prog : {}
 {
-    DeclList() { symTable.put("global", localSymTable); localSymTable = new Hashtable(); }
+    DeclList()
     FuncList()
     Main() <EOF> {return jjtThis;}
 }
@@ -229,21 +209,12 @@ void Decl() : {}
 
 void VarDecl() #VarDecl : {Token t; String id; String type;}
 {
-    t = <VAR> id = Identifier() <COLON> type = Type() {
-        Enumeration en = localSymTable.keys();
-        while (en.hasMoreElements()) {
-            String s = (String) en.nextElement();
-            STC tmp = (STC) localSymTable.get(s);
-            if (tmp.type == null) tmp.addType(type);
-        }
-    }
+    t = <VAR> id = Identifier() <COLON> type = Type() { st.put(id, type, scope); }
 }
 
 void ConstDecl() #ConstDecl : {Token t; String id; String type;}
 {
-    t = <CONST> id = Identifier() <COLON> type = Type() ConstAssign() {
-        localSymTable.put(id, new STC(t.image, id, type, localSymTable.containsKey(id)));
-    }
+    t = <CONST> id = Identifier() <COLON> type = Type() ConstAssign() { st.put(id, type, scope); }
 }
 
 void ConstAssign() : {Token t;}
@@ -256,23 +227,18 @@ void FuncList() : {}
     [Func() FuncList()]
 }
 
-void Func() #Func : {String id; String type;}
+void Func() #Func : {String id;}
 {
-    Type() id = Identifier() <LPAREN> ParamList() <RPAREN> <LBRACE>
+    Type() id = Identifier() {scope = id;} <LPAREN> ParamList() <RPAREN> <LBRACE>
     DeclList()
     StmBlk()
     <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> #FuncRet(>1)
     <RBRACE>
-    {
-        jjtThis.value = id;
-        symTable.put(id, localSymTable);
-        localSymTable = new Hashtable();
-    }
 }
 
 String Type() #Type : {Token t;}
 {
-  ( t = <INT>
+  ( t = <INT> 
   | t = <BOOL>
   | t = <VOID>
   )
@@ -286,9 +252,7 @@ void ParamList() : {}
 
 void NempParamList() #ParamList : {String id; String type;}
 {
-    id = Identifier() <COLON> type = Type() {
-        localSymTable.put(id, new STC("var", id, type, localSymTable.containsKey(id)));
-    } NempParamListPrime()
+    id = Identifier() <COLON> type = Type() { st.put(id, type, scope); } NempParamListPrime()
 }
 
 void NempParamListPrime() : {}
@@ -298,11 +262,7 @@ void NempParamListPrime() : {}
 
 void Main() #Main : {Token t;}
 {
-    t = <MAIN> <LBRACE> DeclList() StmBlk() <RBRACE>
-    {
-        symTable.put(t.image, localSymTable);
-        localSymTable = new Hashtable();
-    }
+    {scope = "main";} t = <MAIN> <LBRACE> DeclList() StmBlk() <RBRACE>
 }
 
 void StmBlk() : {}
@@ -326,7 +286,7 @@ void StmPrime() : {Token t;}
   | (<LPAREN> ArgList() <RPAREN> <SEMIC> {jjtThis.value = "procCall";}) #Stm
 }
 
-void Expr() : {}
+void Expr() #Expr : {}
 {
     (Frag() Term())
   | (<LPAREN> Expr() <RPAREN> Term())
