@@ -4,12 +4,17 @@ public enum DataType {
   VarDecl,
   ConstDecl,
   Func,
+  FuncRet,
   ParamList,
-  TypeUnknown,
   Main,
   Stm,
+  IfStatement,
+  WhileStatement,
   Assign,
   Bool,
   Num,
-  ArgList
+  LogicalOp,
+  ArithOp,
+  ArgList,
+  TypeUnknown
 }

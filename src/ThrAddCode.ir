@@ -1,0 +1,57 @@
+    N = 100
+    goto Main
+func is_prime
+    t1 := x = 1
+    t2 := x = 2
+    t3 := t1 or t2
+    ifFalse t3 goto LB1
+    res := true
+    goto LB2
+LB1:
+    i := 2
+    res := true
+    t4 := i * i
+    t5 := t4 < x
+    t6 := res = true
+    t7 := t5 and t6
+LB3:
+    if t7 goto LB4
+    goto LB5
+LB4:
+    t8 := x / i
+    t9 := x - t8
+    t10 := t9 * i
+    t11 := t10 = 0
+    ifFalse t11 goto LB6
+    res := false
+    t12 := i + 1
+    i := t12
+    goto LB7
+LB6:
+    t13 := i + 1
+    i := t13
+LB7:
+    goto LB3
+LB5:
+LB2:
+    return res
+
+Main:
+    sum := 0
+    i := 2
+    t14 := i <= N
+LB8:
+    if t14 goto LB9
+    goto LB10
+LB9:
+    param i
+    tmp15 := call is_prime, 1
+    ifFalse tmp15 goto LB11
+    t16 := sum + 1
+    sum := t16
+    goto LB12
+LB11:
+LB12:
+    goto LB8
+LB10:
+    result := sum

@@ -38,7 +38,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
 
                 if (tmp.preDeclared) {
                     multipleDeclarations = true;
-                    System.out.println("\tError: ID \"" + tmp.name + "\" declared more than once in scope \"" + tmpScope + "\".");
+                    System.out.println("Error: ID \"" + tmp.name + "\" declared more than once in scope \"" + tmpScope + "\".");
                 }
             }
         }
@@ -50,13 +50,13 @@ public class SemanticCheckVisitor implements CCALVisitor {
         if (constAssignmentTypeCorrect) System.out.println("PASS: All constants were assigned to a value of the correct type.");
 
         if (correctArithmetic) System.out.println("PASS: ");
-        if (correctArithmetic) System.out.println("");
-        if (correctArithmetic) System.out.println("");
-        if (correctArithmetic) System.out.println("");
-        if (correctArithmetic) System.out.println("");
+        if (correctRelational) System.out.println("");
+        if (correctEquality) System.out.println("");
+        if (correctFuncParamNum) System.out.println("");
+        if (allFuncsCalled) System.out.println("");
 
         if (idsWithoutFunc.size() > 0) {
-            for (String id: idsWithoutFunc) System.out.println("\tError: No function for invoked id \"" + id + "\"");
+            for (String id: idsWithoutFunc) System.out.println("Error: No function for invoked id \"" + id + "\"");
         }
 
         boolean read = true;
@@ -72,12 +72,12 @@ public class SemanticCheckVisitor implements CCALVisitor {
 
                 if (!tmp.writtenTo) {
                     written = false;
-                    System.out.println("\tWarning: Never wrote to \"" + tmp.name + "\".");
+                    System.out.println("Warning: Never wrote to \"" + tmp.name + "\".");
                 }
 
                 if (!tmp.readFrom) {
                     read = false;
-                    System.out.println("\tWarning: Never read from \"" + tmp.name + "\".");
+                    System.out.println("Warning: Never read from \"" + tmp.name + "\".");
                 }
             }
         }
@@ -89,7 +89,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
         // TODO would func be in functionCalls if it hadn't been invoked?
         for (String func : functionCalls.keySet()) {
             if (functionCalls.get(func) == 0) {
-                System.out.println("\tWarning: The function \"" + func + "\" was declared but never called.");
+                System.out.println("Warning: The function \"" + func + "\" was declared but never called.");
                 allFuncsCalled = false;
             }
         }
@@ -117,8 +117,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
 
             if (child1DataType != child2DataType) {
                 constAssignmentTypeCorrect = false;
-                System.out.println("\tError: Const \"" + idSn.jjtGetValue() + "\" was assigned a value of the incorrect type.");
-                System.out.println("\t\tWas expecting a \"" + child1DataType + "\" but instead encountered a \"" + child2DataType + "\"");
+                System.out.println("Error: Const \"" + idSn.jjtGetValue() + "\" was assigned a value of the incorrect type.");
+                System.out.println("Was expecting a \"" + child1DataType + "\" but instead encountered a \"" + child2DataType + "\"");
             }
 
             writeRead(idSn.jjtGetValue(), data, "write");
@@ -199,8 +199,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
                 if (functionParams.containsKey(idNode.value)) {
                     if (functionParams.get(idNode.value) != childNode.jjtGetNumChildren()) {
                         correctFuncParamNum = false;
-                        System.out.println("\tError: Wrong number of arguments passed into function \"" + idNode.value + "\".");
-                        System.out.println("\t\tWas expecting " + functionParams.get(idNode.value) + " parameteres but encountered " + childNode.jjtGetNumChildren() + " parameters.");
+                        System.out.println("Error: Wrong number of arguments passed into function \"" + idNode.value + "\".");
+                        System.out.println("Was expecting " + functionParams.get(idNode.value) + " parameteres but encountered " + childNode.jjtGetNumChildren() + " parameters.");
                     }
                 }
             }
@@ -211,16 +211,16 @@ public class SemanticCheckVisitor implements CCALVisitor {
     }
 
     public Object visit(Assign node, Object data) {
-        String stmType = (String) node.value;
-        if (stmType != null && stmType.equals(":=")) { // TODO don't think this is included in my Stm
+        if (node != null) { // TODO don't think this is included in my Stm
+            String stmType = (String) node.value;
             SimpleNode child1SimpleNode = (SimpleNode) node.jjtGetChild(0);
             DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
             DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
 
             if (child1DataType != child2DataType) {
                 assignmentTypeCorrect = false;
-                System.out.println("\tError: Var \"" + child1SimpleNode.jjtGetValue() + "\" was assigned a value of the wrong type.");
-                System.out.println("\t\tWas expecting \"" + child1DataType + "\" but instead encountered \"" + child2DataType + "\"");
+                System.out.println("Error: Var \"" + child1SimpleNode.jjtGetValue() + "\" was assigned a value of the wrong type.");
+                System.out.println("Was expecting \"" + child1DataType + "\" but instead encountered \"" + child2DataType + "\"");
             }
 
             SimpleNode child2SimpleNode = (SimpleNode) node.jjtGetChild(1);
@@ -241,8 +241,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
 
         // TODO bad design pattern
         correctArithmetic = false;
-        System.out.println("\tError: Non numeric types used in arithmetic operation " + node);
-        System.out.println("\t\tWas expecting two arguments of type number but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
+        System.out.println("Error: Non numeric types used in arithmetic operation " + node);
+        System.out.println("Was expecting two arguments of type number but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
         return DataType.TypeUnknown;
     }
 
@@ -283,8 +283,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
 
         // TODO bad design pattern
         correctBoolean = false;
-        System.out.println("\tError: Non boolean types used in logical comparison " + node);
-        System.out.println("\t\tWas expecting two arguments of type boolean but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
+        System.out.println("Error: Non boolean types used in logical comparison " + node);
+        System.out.println("Was expecting two arguments of type boolean but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
         return DataType.TypeUnknown;
     }
 
@@ -348,11 +348,10 @@ public class SemanticCheckVisitor implements CCALVisitor {
         if (symTable.containsKey(value)) {
             SimpleNode parentNode = (SimpleNode) node.jjtGetParent();
             if (parentNode.toString().equals("Statement")) {
-                if (!idsWithoutFunc.contains(value)) {
-                    System.out.println("\tError: ID not declared within scope: " + value);
-                    idsDeclaredInScope = false;
+                if (functionCalls.containsKey(value)) {
+                    functionCalls.put(value, (functionCalls.get(value) + 1));
                 }
-                return DataType.TypeUnknown;
+                return DataType.Func;
             }
         }
 
@@ -363,7 +362,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
             tmp = (STC) globalScope.get(value);
             if (scope.equals("global") || tmp == null) {
                 if (!idsWithoutFunc.contains(value)) {
-                    System.out.println("\tError: Identifier not declared within scope: " + value);
+                    System.out.println("Error: Identifier not declared within scope: " + value);
                     idsDeclaredInScope = false;
                 }
                 return DataType.TypeUnknown;

@@ -1,0 +1,400 @@
+/********************************
+****** SECTION 1 - OPTIONS ******
+********************************/
+
+options
+{
+    JAVA_UNICODE_ESCAPE = true;
+    IGNORE_CASE = false;
+    MULTI=true;
+    VISITOR = true;
+    NODE_DEFAULT_VOID=true;
+}
+
+/********************************
+***** SECTION 2 - USER CODE *****
+********************************/
+
+PARSER_BEGIN(BasicL)
+
+import java.util.*;
+
+public class BasicL
+{
+    public static Hashtable local_ST = new Hashtable();
+    public static Hashtable ST = new Hashtable();
+
+    public static void main(String args[])
+    {
+        BasicL basicBuilder;
+
+        if (args.length == 1)
+        {
+            System.out.println("Reading from file " + args[0]);
+            try
+            {
+                basicBuilder = new BasicL(new java.io.FileInputStream(args[0]));
+            }
+            catch (java.io.FileNotFoundException e)
+            {
+                System.out.println("File " + args[0] + " not found.");
+                return;
+            }
+        }
+        else
+        {
+            System.out.println("BasicL Builder usage is:");
+            System.out.println("    java BasicL inputfile");
+            return;
+        }
+
+        try 
+        {
+            System.out.println("Abstract Syntax Tree:");
+            SimpleNode root = basicBuilder.program();
+            root.dump(" ");
+
+            System.out.println();
+            System.out.println("Symbol Table:");
+
+            Enumeration st_keys = ST.keys();
+
+            while (st_keys.hasMoreElements())
+            {
+                String scope = (String)st_keys.nextElement();
+                System.out.println("Scope --> " + scope);
+
+                Hashtable in_scope = (Hashtable)ST.get(scope);
+                Enumeration in_scope_keys = in_scope.keys();
+
+                while (in_scope_keys.hasMoreElements())
+                {
+                    String temp = (String)in_scope_keys.nextElement();
+                    STC temp2 = (STC)in_scope.get(temp);
+
+                    System.out.println("<---------------->");
+                    if (temp2.name != null)
+                        System.out.println("    id = " + temp2.name);
+                    if (temp2.type_qualifier != null)
+                        System.out.println("    type qualifier = " + temp2.type_qualifier);
+                    if (temp2.type != null)
+                        System.out.println("    type = " + temp2.type);
+                }
+
+                System.out.println();
+            }
+
+            System.out.println("Semantic Checking:");
+            SemanticVisitor sv = new SemanticVisitor();
+            root.jjtAccept(sv, ST);
+
+            System.out.println("");
+            System.out.println("Build 3 address code:");
+            ThreeCodeBuilder tcb = new ThreeCodeBuilder();
+            root.jjtAccept(tcb, null);
+            System.out.println("Created file ThrAddCode.ir");
+        }
+        catch (ParseException e)
+        {
+            System.out.println(e.getMessage());
+            System.out.println("BasicL Builder:  Encountered errors during parse.");
+        }
+    }
+}
+
+PARSER_END(BasicL)
+
+/********************************
+***** SECTION 3 - TOKEN DEFS ****
+********************************/
+
+TOKEN_MGR_DECLS :
+{
+    static int commentNesting = 0;
+}
+
+SKIP : /*** Ignoring spaces/tabs/newlines ***/
+{
+    " "
+    | "\t"
+    | "\n"
+    | "\r"
+    | "\f"
+}
+
+// Skip comments.
+SKIP :
+{
+    < "--" (~["\r", "\n"]) *>
+    | <"/*"> {commentNesting++; } : MULTILINE_COMMENT
+}
+
+// Handle multiline comments.
+<MULTILINE_COMMENT> SKIP :
+{
+    <"/*">
+    {
+        commentNesting++;
+    }
+    | "*/"
+    {
+        commentNesting--;
+        if(commentNesting == 0)
+            SwitchTo(DEFAULT);
+    }
+    | <~[]>
+}
+
+TOKEN :  /* Punctuation */
+{
+    < PLUS : "+" >
+    | < MINUS : "-" >
+    | < MULT : "*" >
+    | < DIV : "/" >
+    | < EQUAL : "=" >
+    | < NOT_EQUAL : "!=" >
+    | < LESS_THAN : "<" >
+    | < GREATER_THAN : ">" >
+    | < EQUAL_LESS_THAN : "<=" >
+    | < EQUAL_GREATER_THAN : ">=" >
+    | < LBR : "(" >
+    | < RBR : ")" >
+    | < COMMA : "," >
+    | < SEMIC : ";" >
+    | < COLON : ":" >
+    | < ASSIGN : ":=" >
+}
+
+
+TOKEN : /* Keywords*/
+{
+    < AND : "and" >
+    | < BOOL : "bool" >
+    | < CONST : "const" >
+    | < DO : "do" >
+    | < ELSE : "else" >
+    | < FALSE : "false" >
+    | < IF : "if" >
+    | < INT : "int" >
+    | < MAIN : "main" >
+    | < NOT : "not" >
+    | < OR : "or" >
+    | < RETURN : "return" >
+    | < THEN : "then" >
+    | < TRUE : "true" >
+    | < VAR : "var" >
+    | < VOID : "void" >
+    | < WHILE : "while" >
+    | < BEGIN : "begin" >
+    | < END : "end" >
+}
+
+TOKEN :  /* Numbers and identifiers */
+{
+    < NUM : (<DIGIT>)+ | (<DIGIT>)+ "." (<DIGIT>)+ >
+    | < #DIGIT : ["0" - "9"] >
+    | < IDENTIFIER : (<LETTER>)(<DIGIT> | <LETTER> | "_")*>
+    | < #LETTER : ["a" - "z", "A" - "Z"] >
+}
+
+TOKEN : /* Anything not recognised so far */
+{
+    < OTHER : ~[] >
+}
+
+/********************************
+**** SECTION 4 - THE GRAMMAR ****
+********************************/
+
+SimpleNode program() #Program : {}
+{
+    ((decl())* { ST.put("global", local_ST); local_ST = new Hashtable();}
+    (function())*
+    main_prog()) <EOF> {return jjtThis;}
+}
+
+void decl() : {}
+{
+    (var_decl() | const_decl())
+}
+
+void var_decl() #Var_decl : {Token t; String type;}
+{
+    t = <VAR> ident_list(t.image) <COLON> type = type()
+    {
+        Enumeration en = local_ST.keys();
+        while (en.hasMoreElements())
+        {
+            String tmp = (String)en.nextElement();
+            STC tmp2 = (STC)local_ST.get(tmp);
+            if (tmp2.type == null)
+                tmp2.addType(type);
+        }
+    }
+    (<COMMA> ident_list(t.image) <COLON> type = type()
+    {
+        en = local_ST.keys();
+        while (en.hasMoreElements())
+        {
+            String tmp = (String)en.nextElement();
+            STC tmp2 = (STC)local_ST.get(tmp);
+            if (tmp2.type == null)
+                tmp2.addType(type);
+        }
+    }
+    )* <SEMIC>
+}
+
+void const_decl() #Cont_decl : {Token t; String id; String type;}
+{
+    t = <CONST> id = identifier() <COLON> type = type() const_assig()
+    {
+        local_ST.put(id, new STC(t.image, id, type, local_ST.containsKey(id)));
+    }
+    (<COMMA> id = identifier() <COLON> type = type() const_assig()
+    {
+        local_ST.put(id, new STC(t.image, id, type,local_ST.containsKey(id)));
+    }
+    )* <SEMIC>
+}
+
+void const_assig() : {Token t;}
+{
+    t = <EQUAL> expression() {jjtThis.value =  t.image;} #Const_assig(1)
+}
+
+void function() #Function : {String id; String type;}
+{
+    type() id = identifier() <LBR> param_list() <RBR>
+    <BEGIN>
+    (decl())*
+    (statement() <SEMIC> )*
+    <RETURN> (expression() | {}) <SEMIC> #Func_ret(1)
+    <END>
+    {
+        jjtThis.value = id;
+        ST.put(id, local_ST);
+        local_ST = new Hashtable();
+    }
+}
+
+void param_list() #Param_list : {String id; String type;}
+{
+    (id = identifier() <COLON> type = type()
+    {
+        local_ST.put(id, new STC("var", id, type, local_ST.containsKey(id)));
+    }
+    ( <COMMA> id = identifier() <COLON> type = type()
+    {
+        local_ST.put(id, new STC("var", id, type, local_ST.containsKey(id)));
+    }
+    )* | {})
+}
+
+String type() #Type : {Token t;}
+{
+    (t = <INT> | t = <BOOL> | t = <VOID>) {jjtThis.value =  t.image; return t.image;}
+}
+
+void main_prog() #Main_prog : {Token t;}
+{
+    t = <MAIN>
+    <BEGIN>
+    (decl())*
+    (statement() <SEMIC>)*
+    <END>
+    {
+        ST.put(t.image, local_ST);
+        local_ST = new Hashtable();
+    }
+}
+
+void statement() #Statement : {Token t;}
+{
+    identifier() ((t = <ASSIGN> expression() {jjtThis.value = t.image;}) 
+        | (<LBR> arg_list() <RBR>){jjtThis.value = "proc_call";})
+    | t = <BEGIN> (statement() <SEMIC>)* <END> {jjtThis.value = t.image;}
+    | t = <IF> condition() <THEN> statement() <SEMIC> <ELSE> statement() {jjtThis.value = t.image;}
+    | t = <WHILE> condition() <DO> statement() {jjtThis.value = t.image;}
+    | {}
+}
+
+void expression() : {}
+{
+    LOOKAHEAD(2) fragment()(operations())*
+    | identifier() <LBR> arg_list()<RBR>
+}
+
+void operations() : {Token t;}
+{
+    t = <PLUS>  fragment() {jjtThis.value = t.image;} #Add_op(2)
+    | t = <MINUS>  fragment() {jjtThis.value = t.image;} #Min_op(2)
+    | t = <MULT>  fragment() {jjtThis.value = t.image;} #Mul_op(2)
+    | t = <DIV>  fragment() {jjtThis.value = t.image;} #Div_op(2)
+}
+
+void fragment() : {}
+{
+    identifier()
+    | bool()
+    | number()
+    | operations()
+    | <LBR> expression() <RBR>
+}
+
+void bool() #Bool_val : {Token t;}
+{
+    (t = <TRUE> | t = <FALSE>) {jjtThis.value = t.image;}
+}
+
+void number() #Number : {Token t;}
+{
+    t = <NUM> {jjtThis.value = t.image;}
+}
+
+void condition() : {}
+{
+    <NOT> condition() newCondition()
+    | LOOKAHEAD(2) <LBR>  expression() conditionSigns() <RBR> newCondition()
+    | LOOKAHEAD(2) expression() conditionSigns() newCondition()
+    | identifier() <LBR> arg_list() <RBR> newCondition()
+}
+
+void newCondition() : {Token t;}
+{
+    t = <AND> condition() newCondition()  {jjtThis.value = t.image;} #And_op(2)
+    | t = <OR> condition() newCondition()  {jjtThis.value = t.image;} #Or_op(2)
+    | {}
+}
+void conditionSigns() : {Token t;}
+{
+    t = <EQUAL> expression() {jjtThis.value = t.image;} #EQ_op(2)
+    | t = <NOT_EQUAL> expression() {jjtThis.value = t.image;} #NOTEQ_op(2)
+    | t = <LESS_THAN> expression() {jjtThis.value = t.image;} #LT_op(2)
+    | t = <GREATER_THAN> expression() {jjtThis.value = t.image;} #GT_op(2)
+    | t = <EQUAL_LESS_THAN> expression() {jjtThis.value = t.image;} #LET_op(2)
+    | t = <EQUAL_GREATER_THAN> expression() {jjtThis.value = t.image;} #GET_op(2)
+}
+
+void ident_list(String t) : {String id;}
+{
+    id = identifier()
+    {
+        local_ST.put(id, new STC(t, id, local_ST.containsKey(id)));
+    }
+    (<COMMA> id = identifier()
+    {
+        local_ST.put(id, new STC(t, id, local_ST.containsKey(id)));
+    }
+    )*
+}
+
+void arg_list() #Arg_list : {}
+{
+    (identifier() (<COMMA> identifier())* | {})
+}
+
+String identifier() #Identifier : {Token t;}
+{
+    t = <IDENTIFIER> {jjtThis.value =  t.image; return t.image;}
+}

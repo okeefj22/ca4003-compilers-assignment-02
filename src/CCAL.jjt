@@ -24,7 +24,7 @@ import java.util.*;
 public class CCAL {
 
     private static void printHeading(String heading) {
-        String stars = "********************************************************************************";
+        String stars = "******************************************************************************";
         String sub = stars.substring(0, (stars.length() - heading.length()) / 2 - 1);
         System.out.println("\n" + stars);
         System.out.printf("%s %s %s\n", sub, heading, sub);
@@ -80,7 +80,7 @@ public class CCAL {
             while (symTableKeys.hasMoreElements()) {
 
                 String scope = (String) symTableKeys.nextElement();
-                System.out.println("Scope --> " + scope);
+                System.out.println("Scope: " + scope);
     
                 Hashtable inScope = (Hashtable) symTable.get(scope);
                 Enumeration inScopeKeys = inScope.keys();
@@ -89,9 +89,9 @@ public class CCAL {
                     STC tmp = (STC) inScope.get(s);
     
                     System.out.println("<----------------->");
-                    if (tmp.name != null) System.out.println("\tid = " + tmp.name);
-                    if (tmp.typeQualifier != null) System.out.println("\ttype qualifier = " + tmp.typeQualifier);
-                    if (tmp.type != null) System.out.println("\ttype = " + tmp.type);
+                    if (tmp.name != null) System.out.println("id = " + tmp.name);
+                    if (tmp.typeQualifier != null) System.out.println("type qualifier = " + tmp.typeQualifier);
+                    if (tmp.type != null) System.out.println("type = " + tmp.type);
                 }
     
                 System.out.println();
@@ -103,10 +103,9 @@ public class CCAL {
             root.jjtAccept(sv, symTable);
     
             // 3 address code generation
-            // System.out.println("\nBuild 3 address code:");
-            // ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
-            // root.jjtAccept(cb, null);
-            // System.out.println("ThreeAddrCode.ir created.");
+            printHeading("Three Address Code");
+            ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
+            root.jjtAccept(cb, null);
     
         } catch (ParseException e) {
         
@@ -130,7 +129,7 @@ TOKEN_MGR_DECLS :
 SKIP : /*** Ignoring spaces/tabs/newlines ***/
 {
     " "
-  | "\t"
+  | ""
   | "\n" 
   | "\r" 
   | "\f" 
@@ -262,7 +261,7 @@ void Func() #Func : {String id; String type;}
     Type() id = Identifier() <LPAREN> ParamList() <RPAREN> <LBRACE>
     DeclList()
     StmBlk()
-    <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> #FuncRet(1)
+    <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> #FuncRet(>1)
     <RBRACE>
     {
         jjtThis.value = id;
@@ -312,18 +311,18 @@ void StmBlk() : {}
   | {}
 }
 
-void Stm() #Stm : {Token t;}
+void Stm() : {Token t;}
 {
     (Identifier() StmPrime())
-  | (t = <LBRACE> StmBlk() <LBRACE> {jjtThis.value = t.image;})
-  | (t = <IF> Cond() <LBRACE> StmBlk() <RBRACE> <ELSE> <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;})
-  | (t = <WHILE> Cond() <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;})
+  | (<LBRACE> StmBlk() <LBRACE>)
+  | (t = <IF> Cond() <LBRACE> StmBlk() <RBRACE> <ELSE> <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;}) #Stm
+  | (t = <WHILE> Cond() <LBRACE> StmBlk() <RBRACE> {jjtThis.value = t.image;}) #Stm
   | (<SKP> <SEMIC>)
 }
 
 void StmPrime() : {Token t;}
 {
-    (t = <ASSIGN> Expr() <SEMIC> {jjtThis.value = t.image;}) #Assign
+    (t = <ASSIGN> Expr() <SEMIC> {jjtThis.value = t.image;}) #Assign(2)
   | (<LPAREN> ArgList() <RPAREN> <SEMIC> {jjtThis.value = "procCall";}) #Stm
 }
 
@@ -392,9 +391,9 @@ void ArgList() : {}
     [NempArgList()]
 }
 
-void NempArgList() #ArgList : {}
+void NempArgList() : {}
 {
-    Identifier() [<COMMA> NempArgList()]
+    Identifier() [<COMMA> NempArgList()] #ArgList(>1)
 }
 
 String Identifier() #identifier : {Token t;}

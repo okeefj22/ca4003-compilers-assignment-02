@@ -22,6 +22,7 @@ public class STC extends Object
         this.typeQualifier = typeQualifier;
         this.name = name;
         this.type = type;
+        this.preDeclared = preDeclared;
     }
 
     public void addType(String type)
