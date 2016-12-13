@@ -82,12 +82,10 @@ public class CCAL {
             SemanticCheckVisitor sv = new SemanticCheckVisitor();
             root.jjtAccept(sv, st);
     
-    /*
             // 3 address code generation
             printHeading("Three Address Code");
             ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
             root.jjtAccept(cb, null);
-*/
     
         } catch (ParseException e) {
         
@@ -200,7 +198,8 @@ SimpleNode Prog() #Prog : {}
 
 void DeclList() : {}
 {
-    [Decl() <SEMIC> DeclList()]
+    Decl() <SEMIC> DeclList()
+  | {}
 }
 
 void Decl() : {}
@@ -211,12 +210,12 @@ void Decl() : {}
 
 void VarDecl() #VarDecl : {Token t; String id; String type;}
 {
-    t = <VAR> id = Identifier() <COLON> type = Type() { st.put(id, type, scope); }
+    t = <VAR> id = Identifier() <COLON> type = Type() { st.put(id, type, "var", scope); }
 }
 
 void ConstDecl() #ConstDecl : {Token t; String id; String type;}
 {
-    t = <CONST> id = Identifier() <COLON> type = Type() ConstAssign() { st.put(id, type, scope); }
+    t = <CONST> id = Identifier() <COLON> type = Type() ConstAssign() { st.put(id, type, "const", scope); }
 }
 
 void ConstAssign() : {Token t;}
@@ -229,9 +228,9 @@ void FuncList() : {}
     [Func() FuncList()]
 }
 
-void Func() #Func : {String id;}
+void Func() #Func : {String id; String type;}
 {
-    Type() id = Identifier() {scope = id;} <LPAREN> ParamList() <RPAREN> <LBRACE>
+    type = Type() id = Identifier() {st.put(id, type, "function", scope); scope = id;} <LPAREN> ParamList() <RPAREN> <LBRACE>
     DeclList()
     StmBlk()
     <RETURN> <LPAREN> [Expr()] <RPAREN> <SEMIC> #FuncRet(>1)
@@ -255,7 +254,7 @@ void ParamList() #ParamList : {}
 
 void NempParamList() #NempParamList : {String id; String type;}
 {
-    id = Identifier() <COLON> type = Type() { st.put(id, type, scope); }
+    id = Identifier() <COLON> type = Type() { st.put(id, type, "function parameter", scope); }
 }
 
 void NempParamListPrime() : {}

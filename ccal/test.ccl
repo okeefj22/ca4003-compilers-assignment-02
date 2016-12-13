@@ -1,13 +1,21 @@
+integer hello ()
+{
+    var x:integer;
+    x = 2;
+    return(x);
+}
+
 main
 {
     var i:integer;
     var j:integer;
     var x:boolean;
-    const p:integer = true;
+    const p:integer = 6;
 
     j = 5;
-    i = j - 2;
+    i = j + 2;
     x = true;
+    /*
     if x == true
     {
         skip;
@@ -16,4 +24,5 @@ main
     {
         skip;
     }
+    */
 }

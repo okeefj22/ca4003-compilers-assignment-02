@@ -5,6 +5,7 @@ public class SemanticCheckVisitor implements CCALVisitor {
     private static String scope = "global";
     private static SymbolTable st;
 
+    private static boolean noDuplicateVars = true;
     private static boolean declaredBeforeUsed = true;
     private static boolean correctConstAssign = true;
     private static boolean correctVarAssign = true;
@@ -19,8 +20,10 @@ public class SemanticCheckVisitor implements CCALVisitor {
         st = (SymbolTable) data;
         node.childrenAccept(this, data);
 
-        st.checkForDups();
+        noDuplicateVars = st.checkForDups();
         
+        System.out.println();
+        if (noDuplicateVars) System.out.printf("Pass: All variables are declared only once in a scope.\n");
         if (declaredBeforeUsed) System.out.printf("Pass: All identifiers declared before use.\n");
         if (correctConstAssign) System.out.printf("Pass: All constants assigned a value of correct type.\n");
         if (correctVarAssign) System.out.printf("Pass: All variables assigned a value of correct type.\n");
@@ -58,6 +61,8 @@ public class SemanticCheckVisitor implements CCALVisitor {
     }
 
     public Object visit(Func node, Object data) {
+        SimpleNode id = (SimpleNode) node.jjtGetChild(1);
+        scope = (String) id.value;
         node.childrenAccept(this, data);
         return DataType.Func;
     }
@@ -68,13 +73,6 @@ public class SemanticCheckVisitor implements CCALVisitor {
         return DataType.TypeUnknown; // TODO why?
     }
 
-    /*
-    public Object visit(Expr node, Object data) {
-        node.childrenAccept(this, data);
-        return DataType.TypeUnknown;
-    }
-    */
-    
     public Object visit(Type node, Object data) {
         String val = (String) node.value;
         if (val.equals("boolean")) return DataType.Bool;
@@ -123,6 +121,14 @@ public class SemanticCheckVisitor implements CCALVisitor {
         return DataType.Assign;
     }
 
+    public Object visit(Num node, Object data) {
+        return DataType.Num;
+    }
+
+    public Object visit(Bool node, Object data) {
+        return DataType.Bool;
+    }
+
     private DataType getArithOpDataType(SimpleNode node, Object data) {
         DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
         DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
@@ -135,7 +141,6 @@ public class SemanticCheckVisitor implements CCALVisitor {
         return DataType.TypeUnknown;
     }
 
-    // parent.toString() == "Assign"
     public Object visit(PlusOp node, Object data) {
         DataType dt = getArithOpDataType(node, data);
         return dt;
@@ -146,22 +151,66 @@ public class SemanticCheckVisitor implements CCALVisitor {
         return dt;
     }
 
-    public Object visit(Num node, Object data) {
-        return DataType.Num;
+    private DataType getEqOpDataType(SimpleNode node, Object data) {
+        DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
+        DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
+
+        if (child1DataType == child2DataType) return child1DataType;
+
+        correctArithArgs = false;
+        System.out.println("Error: attempting to compare values of different types.");
+        System.out.println("\tEncountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
+        return DataType.TypeUnknown;
     }
 
-    public Object visit(Bool node, Object data) {
-        return DataType.Bool;
+    private DataType getCompOpDataType(SimpleNode node, Object data) {
+        DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
+        DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
+
+        if ((child1DataType == DataType.Num) && (child2DataType == DataType.Num)) return DataType.Bool;
+
+        correctArithArgs = false;
+        System.out.println("Error: Non numeric types used in compound operation " + node);
+        System.out.println("\tWas expecting two arguments of type number but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
+        return DataType.TypeUnknown;
     }
 
-    // TODO merge with getDataType and handle printing elsewhere
-    private DataType getDataType2(SimpleNode node, Object data) {
+    public Object visit(EqOp node, Object data) {
+        DataType dt = getEqOpDataType(node, data);
+        return dt;
+    }
+
+    public Object visit(NotOp node, Object data) {
+        DataType dt = getEqOpDataType(node, data);
+        return dt;
+    }
+
+    public Object visit(LtOp node, Object data) {
+        DataType dt = getCompOpDataType(node, data);
+        return dt;
+    }
+
+    public Object visit(LtEqOp node, Object data) {
+        DataType dt = getCompOpDataType(node, data);
+        return dt;
+    }
+
+    public Object visit(GtOp node, Object data) {
+        DataType dt = getCompOpDataType(node, data);
+        return dt;
+    }
+
+    public Object visit(GtEqOp node, Object data) {
+        DataType dt = getCompOpDataType(node, data);
+        return dt;
+    }
+
+    private DataType getLogicalOpDataType(SimpleNode node, Object data) {
         DataType child1DataType = (DataType) node.jjtGetChild(0).jjtAccept(this, data);
         DataType child2DataType = (DataType) node.jjtGetChild(1).jjtAccept(this, data);
 
         if ((child1DataType == DataType.Bool) && (child2DataType == DataType.Bool)) return DataType.Bool;
 
-        // TODO bad design pattern
         correctBoolArgs = false;
         System.out.println("Error: Non boolean types used in logical comparison " + node);
         System.out.println("Was expecting two arguments of type boolean but encountered \"" + child1DataType + "\" and \"" + child2DataType + "\".");
@@ -169,42 +218,12 @@ public class SemanticCheckVisitor implements CCALVisitor {
     }
 
     public Object visit(OrOp node, Object data) {
-        DataType dt = getDataType2(node, data);
+        DataType dt = getLogicalOpDataType(node, data);
         return dt;
     }
 
     public Object visit(AndOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(EqOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(NotOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(LtOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(LtEqOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(GtOp node, Object data) {
-        DataType dt = getDataType2(node, data);
-        return dt;
-    }
-
-    public Object visit(GtEqOp node, Object data) {
-        DataType dt = getDataType2(node, data);
+        DataType dt = getLogicalOpDataType(node, data);
         return dt;
     }
 
@@ -221,13 +240,22 @@ public class SemanticCheckVisitor implements CCALVisitor {
         if (type != "VarDecl" && type != "ConstDecl" && type != "Func") {
             String val = (String) node.jjtGetValue();
             boolean isInScope = st.inScope(val, scope);
-            if (!isInScope) System.out.printf("Error: Identifier \"%s\" not declared in scope.\n", val);
-            else {
+            if (isInScope) { // check global scope
                 String dt = st.typeLookup(val, scope);
                 switch (dt) {
                     case "integer": return DataType.Num;
                     case "boolean": return DataType.Bool;
                     default: return DataType.TypeUnknown;
+                }
+            } else { // check global scope
+                boolean inGlobalScope = st.inScope(val, "global");
+                if (inGlobalScope) {
+                    String dt = st.typeLookup(val, "global");
+                    switch (dt) {
+                        case "integer": return DataType.Num;
+                        case "boolean": return DataType.Bool;
+                        default: return DataType.TypeUnknown;
+                    }
                 }
             }
         }

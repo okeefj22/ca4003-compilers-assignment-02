@@ -15,7 +15,7 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
             System.out.println(instruction);
             labelOnLine = false;
         }
-        else System.out.printf("%10s\n", instruction);
+        else System.out.printf("          %s\n", instruction);
     }
 
     public Object visit(SimpleNode node, Object data) {
@@ -36,7 +36,7 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
         String id = (String) node.jjtGetChild(0).jjtAccept(this, data);
         String val = (String) node.jjtGetChild(2).jjtAccept(this, data);
 
-        printInstruction(id + " " + val);
+        printInstruction(id + " = " + val);
 
         return null;
     }
@@ -46,7 +46,8 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
     }
 
     public Object visit(Func node, Object data) {
-        printLabel((String) node.value);
+        SimpleNode id = (SimpleNode) node.jjtGetChild(1);
+        printLabel((String) id.value);
         node.childrenAccept(this, data);
         return null;
     }
@@ -58,17 +59,16 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
         return (Object) in;
     }
 
-    /*
-    public Object visit(Expr node, Object data) {
-        return null;
-    }
-    */
-
     public Object visit(Type node, Object data) {
         return node.value;
     }
 
     public Object visit(ParamList node, Object data) {
+        node.childrenAccept(this, data);
+        return null;
+    }
+
+    public Object visit(NempParamList node, Object data) {
         node.childrenAccept(this, data);
         return null;
     }
@@ -143,9 +143,7 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
     }
 
     public Object visit(Bool node, Object data) {
-
-
-        return visitOpHelper(node, data);
+        return node.value;
     }
 
     public Object visit(OrOp node, Object data) {
