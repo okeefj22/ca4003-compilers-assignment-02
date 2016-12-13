@@ -1,4 +1,4 @@
-integer multiply (x:integer , y:integer)
+integer multiply ()
 {
 	var result:integer;
 	var minus_sign:boolean;

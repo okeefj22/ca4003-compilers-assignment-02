@@ -73,7 +73,6 @@ public class CCAL {
             SimpleNode root = parser.Prog();
             root.dump("");
 
-/*
             // output symbol table
             printHeading("Symbol Table");
             st.print();
@@ -83,6 +82,7 @@ public class CCAL {
             SemanticCheckVisitor sv = new SemanticCheckVisitor();
             root.jjtAccept(sv, st);
     
+    /*
             // 3 address code generation
             printHeading("Three Address Code");
             ThreeAddrCodeBuilder cb = new ThreeAddrCodeBuilder();
@@ -221,7 +221,7 @@ void ConstDecl() #ConstDecl : {Token t; String id; String type;}
 
 void ConstAssign() : {Token t;}
 {
-    t = <ASSIGN> Expr() {jjtThis.value = t.image;} #ConstAssign(1)
+    t = <ASSIGN> Expr() {jjtThis.value = t.image;} #ConstAssign(>1)
 }
 
 void FuncList() : {}
@@ -247,14 +247,15 @@ String Type() #Type : {Token t;}
   { jjtThis.value = t.image; return t.image; }
 }
 
-void ParamList() : {}
+void ParamList() #ParamList : {}
 {
-    [NempParamList()]   
+    NempParamList() NempParamListPrime()
+  | {}
 }
 
-void NempParamList() #ParamList : {String id; String type;}
+void NempParamList() #NempParamList : {String id; String type;}
 {
-    id = Identifier() <COLON> type = Type() { st.put(id, type, scope); } NempParamListPrime()
+    id = Identifier() <COLON> type = Type() { st.put(id, type, scope); }
 }
 
 void NempParamListPrime() : {}
@@ -317,7 +318,7 @@ void Cond() : {}
 {
     (<NEGATE> Cond() CondPrime())
   | LOOKAHEAD(3) (<LPAREN> Cond() <RPAREN> CondPrime())
-  | (Expr() CompOp() Expr() CondPrime())
+  | (Expr() CompOp() CondPrime())
 }
 
 void CondPrime() : {Token t;}
@@ -329,12 +330,12 @@ void CondPrime() : {Token t;}
 
 void CompOp() : {Token t;}
 {
-    t = <EQ> {jjtThis.value = t.image;} #EqOp
-  | t = <NOT_EQ> {jjtThis.value = t.image;} #NotOp
-  | t = <LT> {jjtThis.value = t.image;} #LtOp
-  | t = <LT_EQ> {jjtThis.value = t.image;} #LtEqOp
-  | t = <GT> {jjtThis.value = t.image;} #GtOp
-  | t = <GT_EQ> {jjtThis.value = t.image;} #GtEqOp
+    t = <EQ> Expr() {jjtThis.value = t.image;} #EqOp(2)
+  | t = <NOT_EQ> Expr() {jjtThis.value = t.image;} #NotOp(2)
+  | t = <LT> Expr() {jjtThis.value = t.image;} #LtOp(2)
+  | t = <LT_EQ> Expr() {jjtThis.value = t.image;} #LtEqOp(2)
+  | t = <GT> Expr() {jjtThis.value = t.image;} #GtOp(2)
+  | t = <GT_EQ> Expr() {jjtThis.value = t.image;} #GtEqOp(2)
 }
 
 void ArgList() : {}

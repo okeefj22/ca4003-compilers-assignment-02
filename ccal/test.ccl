@@ -1,6 +1,19 @@
 main
 {
     var i:integer;
+    var j:integer;
+    var x:boolean;
+    const p:integer = true;
 
-    i = 1 + 2;
+    j = 5;
+    i = j - 2;
+    x = true;
+    if x == true
+    {
+        skip;
+    }
+    else
+    {
+        skip;
+    }
 }

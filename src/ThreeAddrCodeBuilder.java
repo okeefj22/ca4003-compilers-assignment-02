@@ -58,6 +58,12 @@ public class ThreeAddrCodeBuilder implements CCALVisitor {
         return (Object) in;
     }
 
+    /*
+    public Object visit(Expr node, Object data) {
+        return null;
+    }
+    */
+
     public Object visit(Type node, Object data) {
         return node.value;
     }

@@ -48,7 +48,7 @@ public class SymbolTable extends Object {
             LinkedList<String> tmp = st.get(scope);
             while (tmp.size() > 0) {
                 String id = tmp.pop();
-                if (tmp.contains(id)) System.out.printf("Error: %s already defined in scope %s.", id, scope);
+                if (tmp.contains(id)) System.out.printf("Error: %s already defined in scope %s.\n", id, scope);
             }
         }
     }
