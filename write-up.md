@@ -52,4 +52,73 @@ main:     p = 6
           t1 = j + 2
           i = t1
 ```
+ There are also two static variables for keeping track of both the label and temporary variable count. These are incremented as the vaariables are used.
+ 
+The handling of `while` and `if` statements is shown below:
 
+```
+public Object visit(Stm node, Object data) {
+    String stm = (String) node.value;
+    String beginLabel;
+    String condition;
+    String endLabel;
+    switch (stm) {
+        case "while":
+            String conditionLabel = "L" + labelCount;
+            labelCount++;
+            beginLabel = "L" + labelCount;
+            labelCount++;
+            endLabel = "L" + labelCount;
+            labelCount++;
+            printLabel(conditionLabel);
+            condition = (String) node.jjtGetChild(0).jjtAccept(this, data);
+            printInstruction("if " + condition + " goto " + beginLabel);
+            printInstruction("goto " + endLabel);
+            printLabel(beginLabel);
+            int children = node.jjtGetNumChildren();
+            for (int i = 1; i < children; i++) {
+                node.jjtGetChild(i).jjtAccept(this, data);
+            }
+            printInstruction("goto " + conditionLabel);
+            printLabel(endLabel);
+            return null;
+        case "if":
+            if (node.jjtGetNumChildren() > 2) {
+                beginLabel = "L" + labelCount;
+                labelCount++;
+                String elseLabel = "L" + labelCount;
+                labelCount++;
+                endLabel = "L" + labelCount;
+                labelCount++;
+                condition = (String) node.jjtGetChild(0).jjtAccept(this, data);
+                printInstruction("if " + condition + " goto " + beginLabel);
+                printInstruction("goto " + elseLabel);
+                printLabel(beginLabel);
+                node.jjtGetChild(1).jjtAccept(this, data);
+                printInstruction("goto " + endLabel);
+            
+                printLabel(elseLabel);
+                node.jjtGetChild(2).jjtAccept(this, data);
+                printLabel(endLabel);
+		
+            } else {
+                beginLabel = "L" + labelCount;
+                labelCount++;
+                endLabel = "L" + labelCount;
+                labelCount++;
+                condition = (String) node.jjtGetChild(0).jjtAccept(this, data);
+                printInstruction("if " + condition + " goto " + beginLabel);
+                printInstruction("goto " + endLabel);
+                printLabel(beginLabel);
+                node.jjtGetChild(1).jjtAccept(this, data);
+            
+                printLabel(endLabel);
+            }
+            return null;
+        default:
+            return null;
+    }
+}
+```
+
+The `else` in the `if` case accounts for occasions where an `if` statement is followed by an `else` which only contains a `skip` instruction. If this was not included you would observe a NullPointerException as the program attempts to visit the second child.
